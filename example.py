@@ -2,7 +2,7 @@
 
 import time
 from hmdriver2.driver import Driver
-from hmdriver2.proto import DeviceInfo, KeyCode, ComponentData
+from hmdriver2.proto import DeviceInfo, KeyCode, ComponentData, DisplayRotation
 
 
 # New driver
@@ -14,6 +14,7 @@ info: DeviceInfo = d.device_info
 
 d.display_size
 d.display_rotation
+d.set_display_rotation(DisplayRotation.ROTATION_180)
 
 d.install_app("~/develop/harmony_prj/demo.hap")
 d.clear_app("com.samples.test.uitest")
@@ -52,7 +53,15 @@ d.double_click(0.5, 0.4)
 d.long_click(500, 1000)
 d.long_click(0.5, 0.4)
 d.swipe(0.5, 0.8, 0.5, 0.4, speed=2000)
-d.input_text(0.5, 0.5, "adbcdfg")
+
+d.swipe_ext("up")  # 向上滑动，"left", "right", "up", "down"
+d.swipe_ext("right", scale=0.8)  # 向右滑动，滑动距离为屏幕宽度的80%
+d.swipe_ext("up", box=(0.2, 0.2, 0.8, 0.8))  # 在屏幕 (0.2, 0.2) -> (0.8, 0.8) 这个区域上滑
+
+from hmdriver2.proto import SwipeDirection
+d.swipe_ext(SwipeDirection.DOWN)  # 向下滑动
+
+d.input_text("adbcdfg")
 
 # Device touch gersture
 d.gesture.start(630, 984, interval=.5).move(0.2, 0.4, interval=.5).pause(interval=1).move(0.5, 0.6, interval=.5).pause(interval=1).action()

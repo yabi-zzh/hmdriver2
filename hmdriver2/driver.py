@@ -2,6 +2,7 @@
 
 import json
 import uuid
+import re
 from typing import Type, Any, Tuple, Dict, Union, List
 from functools import cached_property  # python3.8+
 
@@ -9,8 +10,6 @@ from . import logger
 from .utils import delay
 from ._client import HmClient
 from ._uiobject import UiObject
-from .hdc import list_devices
-from .exception import DeviceNotFoundError
 from .proto import HypiumResponse, KeyCode, Point, DisplayRotation, DeviceInfo, CommandResult
 
 
@@ -19,9 +18,6 @@ class Driver:
 
     def __init__(self, serial: str):
         self.serial = serial
-        if not self._is_device_online():
-            raise DeviceNotFoundError(f"Device [{self.serial}] not found")
-
         self._client = HmClient(self.serial)
         self.hdc = self._client.hdc
 
@@ -46,12 +42,8 @@ class Driver:
     def _init_hmclient(self):
         self._client.start()
 
-    def _is_device_online(self):
-        _serials = list_devices()
-        return True if self.serial in _serials else False
-
-    def _invoke(self, api: str, args: List = [], method: str = None) -> HypiumResponse:
-        return self._client.invoke(api, this="Driver#0", args=args, method=method)
+    def _invoke(self, api: str, args: List = []) -> HypiumResponse:
+        return self._client.invoke(api, this="Driver#0", args=args)
 
     @delay
     def start_app(self, package_name: str, page_name: str = "MainAbility"):
@@ -84,7 +76,28 @@ class Driver:
     def has_app(self, package_name: str) -> bool:
         return self.hdc.has_app(package_name)
 
+    def current_app(self) -> Tuple[str, str]:
+        """
+        Get the current foreground application information.
+
+        Returns:
+            Tuple[str, str]: A tuple contain the package_name andpage_name of the foreground application.
+                             If no foreground application is found, returns (None, None).
+        """
+
+        return self.hdc.current_app()
+
     def get_app_info(self, package_name: str) -> Dict:
+        """
+        Get detailed information about a specific application.
+
+        Args:
+            package_name (str): The package name of the application to retrieve information for.
+
+        Returns:
+            Dict: A dictionary containing the application information. If an error occurs during parsing,
+                  an empty dictionary is returned.
+        """
         app_info = {}
         data: CommandResult = self.hdc.shell(f"bm dump -n {package_name}")
         output = data.output
@@ -156,6 +169,16 @@ class Driver:
         value = self._invoke(api).result
         return DisplayRotation.from_value(value)
 
+    def set_display_rotation(self, rotation: DisplayRotation):
+        """
+        Sets the display rotation to the specified orientation.
+
+        Args:
+            rotation (DisplayRotation): The desired display rotation. This should be an instance of the DisplayRotation enum.
+        """
+        api = "Driver.setDisplayRotation"
+        self._invoke(api, args=[rotation.value])
+
     @cached_property
     def device_info(self) -> DeviceInfo:
         """
@@ -177,8 +200,8 @@ class Driver:
         )
 
     @delay
-    def open_url(self, url: str, system_browser: bool = None):
-        if system_browser is True:
+    def open_url(self, url: str, system_browser: bool = True):
+        if system_browser:
             # Use the system browser
             self.hdc.shell(f"aa start -A ohos.want.action.viewData -e entity.system.browsable -U {url}")
         else:
@@ -245,7 +268,7 @@ class Driver:
             x = int(w * x)
         if y < 1:
             y = int(h * y)
-        return Point(x, y)
+        return Point(int(x), int(y))
 
     @delay
     def click(self, x: Union[int, float], y: Union[int, float]):
@@ -290,23 +313,32 @@ class Driver:
         api = "Driver.swipe"
         self._invoke(api, args=[point1.x, point1.y, point2.x, point2.y, speed])
 
+    @cached_property
+    def swipe_ext(self):
+        from ._swipe import SwipeExt
+        return SwipeExt(self)
+
     @delay
-    def input_text(self, x: int = 1, y: int = 1, text: str = ""):
+    def input_text(self, text: str):
         """
-            input_text(100, 100, text="测试")
-            input_text(text="测试")
+        Inputs text into the currently focused input field.
+
+        Note: The input field must have focus before calling this method.
+
+        Args:
+            text (str): input value
         """
+        return self._invoke("Driver.inputText", args=[{"x": 1, "y": 1}, text])
 
-        return self._invoke("Driver.inputText", args=[{"x": x, "y": y}, text])
-
-    def dump_hierarchy(self) -> HypiumResponse:
+    def dump_hierarchy(self) -> Dict:
         """
         Dump the UI hierarchy of the device screen.
 
         Returns:
             Dict: The dumped UI hierarchy as a dictionary.
         """
-        return self._invoke("captureLayout", method="Captures")
+        # return self._client.invoke_captures("captureLayout").result
+        return self.hdc.dump_hierarchy()
 
     @cached_property
     def gesture(self):
@@ -318,7 +350,7 @@ class Driver:
         from ._screenrecord import RecordClient
         return RecordClient(self.serial, self)
 
-    def invalidate_cache(self, attribute_name):
+    def _invalidate_cache(self, attribute_name):
         """
         Invalidate the cached property.
 

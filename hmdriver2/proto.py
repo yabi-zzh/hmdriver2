@@ -13,7 +13,14 @@ class CommandResult:
     exit_code: int
 
 
-class DisplayRotation(Enum):
+class SwipeDirection(str, Enum):
+    LEFT = "left"
+    RIGHT = "right"
+    UP = "up"
+    DOWN = "down"
+
+
+class DisplayRotation(int, Enum):
     ROTATION_0 = 0
     ROTATION_90 = 1
     ROTATION_180 = 2

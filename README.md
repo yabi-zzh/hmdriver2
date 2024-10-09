@@ -10,7 +10,7 @@
 
 `hmdriver2`是一款支持`HarmonyOS NEXT`系统的UI自动化框架，**无侵入式**，提供应用管理，UI操作，元素定位等功能，轻量高效，上手简单，快速实现鸿蒙应用自动化测试需求。
 
-![arch](./docs/img/arch.png)
+![arch](https://i.ibb.co/d603wQn/arch.png)
 
 # Key idea
 - **无侵入式**
@@ -43,9 +43,9 @@
   - 文本输入，清除
   - 获取控件树
 - 支持Toast获取
+- UI Inspector
 - [TODO] 全场景弹窗处理
 - [TODO] 操作标记
-- [TODO] Inspector
 
 
 
@@ -66,11 +66,11 @@ export HDC_SERVER_PORT=7035
 
 3. 安装`hmdirver2` 基础库
 ```bash
-pip3 install -U hmdriver
+pip3 install -U hmdriver2
 ```
 如果需要使用[屏幕录屏](#屏幕录屏) 功能，则需要安装额外依赖`opencv-python`
 ```bash
-pip3 install -U "hmdriver[opencv-python]"
+pip3 install -U "hmdriver2[opencv-python]"
 //由于`opencv-python`比较大，因此没有写入到主依赖中
 ```
 
@@ -86,14 +86,70 @@ print(d.device_info)
 
 d.start_app("com.kuaishou.hmapp", "EntryAbility")
 d(text="精选").click()
+d.swipe(0.5, 0.8, 0.5, 0.4)
 ...
 ```
 
+# UI inspector
+UI 控件树可视化工具，查看控件树层级，获取控件详情。
 
+![ui-viewer](https://i.ibb.co/82BrJ1H/harmony.png)
+
+
+详细介绍请看 [ui-viewer](https://github.com/codematrixer/ui-viewer)
 
 ---
 
 # API Documents
+
+- [API Documents](#api-documents)
+  - [初始化Driver](#初始化driver)
+  - [App管理](#app管理)
+    - [安装App](#安装app)
+    - [卸载App](#卸载app)
+    - [启动App](#启动app)
+    - [停止App](#停止app)
+    - [清除App数据](#清除app数据)
+    - [获取App详情](#获取app详情)
+  - [设备操作](#设备操作)
+    - [获取设备信息](#获取设备信息)
+    - [获取设备分辨率](#获取设备分辨率)
+    - [获取设备旋转状态](#获取设备旋转状态)
+    - [设置设备旋转](#设置设备旋转)
+    - [Home](#home)
+    - [返回](#返回)
+    - [亮屏](#亮屏)
+    - [息屏](#息屏)
+    - [屏幕解锁](#屏幕解锁)
+    - [Key Events](#key-events)
+    - [执行hdc](#执行hdc)
+    - [打开URL (schema)](#打开url-schema)
+    - [文件操作](#文件操作)
+    - [屏幕截图](#屏幕截图)
+    - [屏幕录屏](#屏幕录屏)
+    - [Device Touch](#device-touch)
+      - [单击](#单击)
+      - [双击](#双击)
+      - [长按](#长按)
+      - [滑动](#滑动)
+      - [滑动 ext](#滑动-ext)
+      - [输入](#输入)
+      - [复杂手势](#复杂手势)
+  - [控件操作](#控件操作)
+    - [控件选择器](#控件选择器)
+    - [控件查找](#控件查找)
+    - [控件信息](#控件信息)
+    - [控件数量](#控件数量)
+    - [控件点击](#控件点击)
+    - [控件双击](#控件双击)
+    - [控件长按](#控件长按)
+    - [控件拖拽](#控件拖拽)
+    - [控件缩放](#控件缩放)
+    - [控件输入](#控件输入)
+    - [文本清除](#文本清除)
+  - [获取控件树](#获取控件树)
+  - [获取Toast](#获取toast)
+
 
 ## 初始化Driver
 ```python
@@ -217,6 +273,7 @@ from hmdriver2.proto import DisplayRotation
 rotation = d.display_rotation
 # ouput: DisplayRotation.ROTATION_0
 ```
+
 设备旋转状态包括：
 ```python
 ROTATION_0 = 0    # 未旋转
@@ -224,7 +281,15 @@ ROTATION_90 = 1  # 顺时针旋转90度
 ROTATION_180 = 2  # 顺时针旋转180度
 ROTATION_270 = 3  # 顺时针旋转270度
 ```
-备注：目前旋转状态只能查看，不支持设置
+
+### 设置设备旋转
+```python
+from hmdriver2.proto import DisplayRotation
+
+# 旋转180度
+d.set_display_rotation(DisplayRotation.ROTATION_180)
+```
+
 
 
 ### Home
@@ -359,14 +424,32 @@ d.swipe(x1, y1, x2, y2, spped)
 d.swipe(600, 2600, 600, 1200, speed=2000)  # 上滑
 d.swipe(0.5, 0.8, 0.5, 0.4, speed=2000)
 ```
-参数`x1`, `y1`表示滑动的起始点，`x2`, `y2`表示滑动的终点，`speed`为滑动速率, 范围:200~40000, 不在范围内设为默认值为2000, 单位: 像素点/秒
+- `x1`, `y1`表示滑动的起始点，`x2`, `y2`表示滑动的终点
+- `speed`为滑动速率, 范围:200~40000, 不在范围内设为默认值为2000, 单位: 像素点/秒
+
+#### 滑动 ext
+```python
+
+d.swipe_ext("up")  # 向上滑动，"left", "right", "up", "down"
+d.swipe_ext("right", scale=0.8)  # 向右滑动，滑动距离为屏幕宽度的80%
+d.swipe_ext("up", box=(0.2, 0.2, 0.8, 0.8))  # 在屏幕 (0.2, 0.2) -> (0.8, 0.8) 这个区域上滑
+
+# 使用枚举作为参数
+from hmdriver2.proto import SwipeDirection
+d.swipe_ext(SwipeDirection.DOWN)  # 向下滑动
+```
+- `direction`表示滑动方向，可以为`up`, `down`, `left`, `right`, 也可以为`SwipeDirection`的枚举值
+- `scale`表示滑动距离百分比，范围:0.1~1.0, 默认值为0.8
+- `box`表示滑动区域，格式为`(x1, y1, x2, y2)`, 表示滑动区域的左上角和右下角的坐标，可以为绝对坐标值，也可以为相当坐标（屏幕百分比）
+  
+Notes: `swipe_ext`和`swipe`的区别在于swipe_ext可以指定滑动区域，并且可以指定滑动方向，更简洁灵活
 
 #### 输入
 ```python
-d.input_text(x, y, text)
+d.input_text(text)
 
 # eg.
-d.input_text(0.3, 0.5, "adbcdfg")
+d.input_text("adbcdfg")
 ```
 参数`x`, `y`表示输入的位置，`text`表示输入的文本
 
@@ -400,7 +483,7 @@ d.click(x, y)
 
 *如下是一个复杂手势的效果展示*
 
-![Watch the gif](./docs/img/gesture.gif)
+![Watch the gif](https://i.ibb.co/PC76PRD/gesture.gif)
 
 
 ## 控件操作
@@ -610,16 +693,20 @@ toast = d.toast_watcher.get_toast()
 ```
 
 
-
 # 鸿蒙Uitest协议
 
 See [DEVELOP.md](/docs/DEVELOP.md)
+
 
 # 拓展阅读
 [hmdriver2 发布：开启鸿蒙 NEXT 自动化新时代](https://testerhome.com/topics/40667)
 
 
-# Refer to
+# Contributors
+[Contributors](https://github.com/codematrixer/hmdriver2/graphs/contributors)
+
+
+# Reference
 
 - https://developer.huawei.com/consumer/cn/doc/harmonyos-guides-V5/ut-V5
 - https://github.com/codematrixer/awesome-hdc

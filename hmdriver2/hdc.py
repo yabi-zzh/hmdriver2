@@ -6,12 +6,12 @@ import uuid
 import shlex
 import re
 import subprocess
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Tuple
 
 from . import logger
 from .utils import FreePort
 from .proto import CommandResult, KeyCode
-from .exception import HdcError
+from .exception import HdcError, DeviceNotFoundError
 
 
 def _execute_command(cmdargs: Union[str, List[str]]) -> CommandResult:
@@ -28,6 +28,10 @@ def _execute_command(cmdargs: Union[str, List[str]]) -> CommandResult:
         output = output.decode('utf-8')
         error = error.decode('utf-8')
         exit_code = process.returncode
+
+        if output.lower().__contains__('error:'):
+            return CommandResult("", output, -1)
+
         return CommandResult(output, error, exit_code)
     except Exception as e:
         return CommandResult("", str(e), -1)
@@ -39,6 +43,8 @@ def list_devices() -> List[str]:
     if result.exit_code == 0 and result.output:
         lines = result.output.strip().split('\n')
         for line in lines:
+            if line.__contains__('Empty'):
+                continue
             devices.append(line.strip())
     return devices
 
@@ -46,18 +52,24 @@ def list_devices() -> List[str]:
 class HdcWrapper:
     def __init__(self, serial: str) -> None:
         self.serial = serial
+        if not self.is_online():
+            raise DeviceNotFoundError(f"Device [{self.serial}] not found")
+
+    def is_online(self):
+        _serials = list_devices()
+        return True if self.serial in _serials else False
 
     def forward_port(self, rport: int) -> int:
         lport: int = FreePort().get()
         result = _execute_command(f"hdc -t {self.serial} fport tcp:{lport} tcp:{rport}")
         if result.exit_code != 0:
-            raise HdcError("HDC forward port error", result.output)
+            raise HdcError("HDC forward port error", result.error)
         return lport
 
     def rm_forward(self, lport: int, rport: int) -> int:
         result = _execute_command(f"hdc -t {self.serial} fport rm tcp:{lport} tcp:{rport}")
         if result.exit_code != 0:
-            raise HdcError("HDC rm forward error", result.output)
+            raise HdcError("HDC rm forward error", result.error)
         return lport
 
     def list_fport(self) -> List:
@@ -66,25 +78,25 @@ class HdcWrapper:
         """
         result = _execute_command(f"hdc -t {self.serial} fport ls")
         if result.exit_code != 0:
-            raise HdcError("HDC forward list error", result.output)
+            raise HdcError("HDC forward list error", result.error)
         pattern = re.compile(r"tcp:\d+ tcp:\d+")
         return pattern.findall(result.output)
 
     def send_file(self, lpath: str, rpath: str):
         result = _execute_command(f"hdc -t {self.serial} file send {lpath} {rpath}")
         if result.exit_code != 0:
-            raise HdcError("HDC send file error", result.output)
+            raise HdcError("HDC send file error", result.error)
         return result
 
     def recv_file(self, rpath: str, lpath: str):
         result = _execute_command(f"hdc -t {self.serial} file recv {rpath} {lpath}")
         if result.exit_code != 0:
-            raise HdcError("HDC receive file error", result.output)
+            raise HdcError("HDC receive file error", result.error)
         return result
 
     def shell(self, cmd: str, error_raise=True) -> CommandResult:
         result = _execute_command(f"hdc -t {self.serial} shell {cmd}")
-        if result.error and error_raise:
+        if result.exit_code != 0 and error_raise:
             raise HdcError("HDC shell error", f"{cmd}\n{result.output}\n{result.error}")
         return result
 
@@ -95,9 +107,9 @@ class HdcWrapper:
         return result
 
     def install(self, apkpath: str):
-        result = _execute_command(f"hdc -t {self.serial} install {apkpath}")
+        result = _execute_command(f"hdc -t {self.serial} install '{apkpath}'")
         if result.exit_code != 0:
-            raise HdcError("HDC install error", result.output)
+            raise HdcError("HDC install error", result.error)
         return result
 
     def list_apps(self) -> List[str]:
@@ -114,6 +126,38 @@ class HdcWrapper:
 
     def stop_app(self, package_name: str):
         return self.shell(f"aa force-stop {package_name}")
+
+    def current_app(self) -> Tuple[str, str]:
+        """
+        Get the current foreground application information.
+
+        Returns:
+            Tuple[str, str]: A tuple contain the package_name andpage_name of the foreground application.
+                             If no foreground application is found, returns (None, None).
+        """
+
+        def __extract_info(output: str):
+            results = []
+
+            mission_blocks = re.findall(r'Mission ID #[\s\S]*?isKeepAlive: false\s*}', output)
+            if not mission_blocks:
+                return results
+
+            for block in mission_blocks:
+                if 'state #FOREGROUND' in block:
+                    bundle_name_match = re.search(r'bundle name \[(.*?)\]', block)
+                    main_name_match = re.search(r'main name \[(.*?)\]', block)
+                    if bundle_name_match and main_name_match:
+                        package_name = bundle_name_match.group(1)
+                        page_name = main_name_match.group(1)
+                        results.append((package_name, page_name))
+
+            return results
+
+        data: CommandResult = self.shell("aa dump -l")
+        output = data.output
+        results = __extract_info(output)
+        return results[0] if results else (None, None)
 
     def wakeup(self):
         self.shell("power-shell wakeup")
@@ -159,6 +203,16 @@ class HdcWrapper:
     def cpu_abi(self) -> str:
         data = self.shell("param get const.product.cpu.abilist").output
         return self.__split_text(data)
+
+    def display_size(self) -> Tuple[int, int]:
+        data = self.shell("hidumper -s RenderService -a screen").output
+        match = re.search(r'activeMode:\s*(\d+)x(\d+),\s*refreshrate=\d+', data)
+
+        if match:
+            w = int(match.group(1))
+            h = int(match.group(2))
+            return (w, h)
+        return (0, 0)
 
     def send_key(self, key_code: Union[KeyCode, int]) -> None:
         if isinstance(key_code, KeyCode):
