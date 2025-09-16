@@ -105,7 +105,20 @@ class Driver:
         将 Driver 实例作为函数调用，返回 UiObject 实例
         
         Args:
-            **kwargs: 传递给 UiObject 构造函数的参数
+            **kwargs: 传递给 UiObject 构造函数的参数，支持 Match 匹配模式
+            
+        Examples:
+            # 完全匹配（默认）
+            d(text="确定")
+            
+            # 包含匹配
+            d(text="搜索", match=Match.IN)
+            
+            # 正则匹配
+            d(text="app_.*", match=Match.RE)
+            
+            # 元组格式：(值, 匹配模式)
+            d(text=("^设置.*", Match.RE))
             
         Returns:
             UiObject: 创建的 UiObject 实例

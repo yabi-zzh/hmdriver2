@@ -11,6 +11,22 @@ from .proto import ComponentData, ByData, HypiumResponse, Point, Bounds, Element
 from .utils import delay
 
 
+# 定义本地的匹配模式枚举
+class Match(enum.Enum):
+    """
+    匹配模式枚举
+    
+    用于指定查找元素时的匹配方式
+    """
+    EQ = 0           # 完全匹配 (Equals)
+    IN = 1           # 包含匹配 (Contains)
+    SW = 2           # 开头匹配 (Starts With)
+    EW = 3           # 结尾匹配 (Ends With) 
+    RE = 4           # 正则匹配 (Regexp)
+    REI = 5          # 忽略大小写的正则匹配 (Regexp Ignore case)
+
+
+
 class ByType(enum.Enum):
     """
     UI 元素查找类型枚举
@@ -63,7 +79,9 @@ class UiObject:
         
         Args:
             client: HmClient 实例
-            **kwargs: 查找元素的条件
+            **kwargs: 查找元素的条件，支持 Match 参数
+                例如: text="搜索", match=Match.RE
+                或者: text=("app_.*", Match.RE)
         """
         self._client = client
         self._raw_kwargs = kwargs
@@ -72,8 +90,22 @@ class UiObject:
         self._index = kwargs.pop("index", 0)
         self._isBefore = kwargs.pop("isBefore", False)
         self._isAfter = kwargs.pop("isAfter", False)
+        self._match = kwargs.pop("match", Match.EQ)
 
-        self._kwargs = kwargs
+        # 处理查找条件，支持 (值, 匹配模式) 的元组格式
+        self._kwargs = {}
+        self._match_patterns = {}
+        
+        for k, v in kwargs.items():
+            if isinstance(v, tuple) and len(v) == 2:
+                # 支持 text=("搜索", Match.RE) 格式
+                self._kwargs[k] = v[0]
+                self._match_patterns[k] = v[1]
+            else:
+                # 普通格式，使用默认或全局匹配模式
+                self._kwargs[k] = v
+                self._match_patterns[k] = self._match
+                
         self.__verify()
 
         self._component: Optional[ComponentData] = None  # 缓存找到的组件
@@ -195,10 +227,14 @@ class UiObject:
         """
         this = "On#seed"
         
-        # 处理所有查找条件
+        # 处理所有查找条件，支持 Match
         for k, v in self._kwargs.items():
             api = f"On.{k}"
-            resp: HypiumResponse = self._client.invoke(api, this=this, args=[v])
+            match_pattern = self._match_patterns.get(k, Match.EQ)
+            
+            # 构建参数：[值, 匹配模式值]
+            args = [v, match_pattern.value]
+            resp: HypiumResponse = self._client.invoke(api, this=this, args=args)
             this = resp.result
 
         # 处理位置关系
