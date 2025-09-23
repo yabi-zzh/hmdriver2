@@ -7,7 +7,6 @@ import socket
 import struct
 import time
 from datetime import datetime
-from functools import cached_property
 from typing import Optional, Union, Dict, List, Any
 
 from . import logger
@@ -51,8 +50,9 @@ class HmClient:
         self.sock: Optional[socket.socket] = None
         self._header_length = len(MSG_HEADER)
         self._tailer_length = len(MSG_TAILER)
+        self._local_port: Optional[int] = None  # 存储已建立的本地端口
 
-    @cached_property
+    @property
     def local_port(self) -> int:
         """
         获取本地转发端口
@@ -60,15 +60,24 @@ class HmClient:
         Returns:
             int: 本地端口号
         """
-        fports = self.hdc.list_fport()
-        if fports:
-            logger.debug(fports)
-        return self.hdc.forward_port(UITEST_SERVICE_PORT)
+        if self._local_port is None:
+            fports = self.hdc.list_fport()
+            if fports:
+                logger.debug(fports)
+            self._local_port = self.hdc.forward_port(UITEST_SERVICE_PORT)
+            logger.debug(f"建立端口转发: {self._local_port} -> {UITEST_SERVICE_PORT}")
+        return self._local_port
 
     def _rm_local_port(self) -> None:
         """移除本地端口转发"""
-        logger.debug("移除本地端口转发")
-        self.hdc.rm_forward(self.local_port, UITEST_SERVICE_PORT)
+        if self._local_port is not None:
+            logger.debug(f"移除端口转发: {self._local_port} -> {UITEST_SERVICE_PORT}")
+            try:
+                self.hdc.rm_forward(self._local_port, UITEST_SERVICE_PORT)
+            except Exception as e:
+                logger.warning(f"移除端口转发时出错: {e}")
+            finally:
+                self._local_port = None  # 清除端口缓存
 
     def _connect_sock(self) -> None:
         """创建 Socket 并连接到 UITest 服务器"""

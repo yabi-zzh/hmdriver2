@@ -71,6 +71,7 @@ class Driver:
         self.hdc = self._client.hdc
         self._init_hmclient()
         self._initialized = True  # 标记实例已初始化
+        self._closed = False  # 标记实例未关闭
         del self._serial_for_init  # 清理临时属性
 
     @classmethod
@@ -128,10 +129,58 @@ class Driver:
     def __del__(self):
         """
         析构函数，清理资源
+        
+        自动调用 close() 方法释放资源
         """
-        Driver._instance.clear()
-        if hasattr(self, '_client') and self._client:
-            self._client.release()
+        try:
+            self.close()
+        except Exception:
+            pass  # 析构函数中忽略所有异常
+
+    def __enter__(self):
+        """上下文管理器进入"""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """上下文管理器退出时自动清理资源"""
+        self.close()
+        return False  # 不抑制异常
+
+    def close(self) -> None:
+        """
+        手动释放 Driver 资源
+        
+        主动关闭连接、清理端口转发和缓存。
+        建议在使用完毕后手动调用此方法，而不仅依赖析构函数。
+        此方法可以安全地重复调用。
+        
+        Examples:
+            d = Driver()
+            # ... 使用 Driver
+            d.close()  # 主动释放资源
+        """
+        # 防止重复调用
+        if getattr(self, '_closed', False):
+            return
+            
+        logger.info(f"关闭 Driver [{getattr(self, 'serial', 'unknown')}]")
+        
+        try:
+            # 释放客户端资源（包括端口转发）
+            if hasattr(self, '_client') and self._client:
+                self._client.release()
+        except Exception as e:
+            logger.warning(f"释放客户端资源时出错: {e}")
+        
+        # 从实例缓存中移除当前实例
+        try:
+            if hasattr(self, 'serial') and self.serial in Driver._instance:
+                del Driver._instance[self.serial]
+        except Exception as e:
+            logger.warning(f"清理实例缓存时出错: {e}")
+        
+        # 标记为已关闭
+        self._closed = True
 
     def _init_hmclient(self):
         """初始化 HmClient 连接"""
