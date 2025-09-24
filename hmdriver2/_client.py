@@ -61,9 +61,6 @@ class HmClient:
             int: 本地端口号
         """
         if self._local_port is None:
-            fports = self.hdc.list_fport()
-            if fports:
-                logger.debug(fports)
             self._local_port = self.hdc.forward_port(UITEST_SERVICE_PORT)
             logger.debug(f"建立端口转发: {self._local_port} -> {UITEST_SERVICE_PORT}")
         return self._local_port
@@ -478,7 +475,6 @@ class _UITestService:
             remote_md5 = self._get_remote_md5sum(remote_path)
             if local_md5 == remote_md5:
                 logger.debug("远程 agent 文件已是最新")
-                self.hdc.shell(f"chmod +x {remote_path}")
                 return
             self.hdc.shell(f"rm {remote_path}")
 

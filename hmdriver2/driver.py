@@ -93,15 +93,20 @@ class Driver:
         Raises:
             DeviceNotFoundError: 未找到设备或指定的设备不存在
         """
-        devices = list_devices()
+        from .device_manager import device_manager
+        
+        devices = device_manager.get_devices()
         if not devices:
             raise DeviceNotFoundError("未找到设备，请连接设备")
 
         if serial is None:
-            logger.info(f"未提供序列号，使用第一个设备: {devices[0]}")
-            return devices[0]
-        if serial not in devices:
+            first_device = devices[0]
+            logger.info(f"未提供序列号，使用第一个设备: {first_device}")
+            return first_device
+        
+        if not device_manager.has_device(serial, auto_refresh=True):
             raise DeviceNotFoundError(f"未找到设备 [{serial}]")
+        
         return serial
 
     def __call__(self, **kwargs) -> UiObject:

@@ -56,24 +56,28 @@ class FreePort:
 
     def get(self) -> int:
         """
-        获取一个空闲端口
+        获取一个空闲端口（系统自动分配）
+        
+        通过绑定 ('127.0.0.1', 0) 让系统返回可用端口号，避免扫描导致的阻塞。
         
         Returns:
             int: 可用的端口号
         """
-        attempts = 0
-        max_attempts = self._end - self._start
-        
-        while attempts < max_attempts:
-            attempts += 1
-            self._now += 1
-            if self._now > self._end:
-                self._now = self._start
-                
-            if not self.is_port_in_use(self._now):
-                return self._now
-                
-        raise RuntimeError(f"无法找到可用端口，已尝试 {max_attempts} 次")
+        start_ts = time.time()
+        port = 0
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # 绑定到0表示让系统分配可用端口
+            s.bind(('127.0.0.1', 0))
+            port = s.getsockname()[1]
+        finally:
+            try:
+                s.close()
+            except Exception:
+                pass
+
+        # 保持实现简洁，不额外输出调试日志
+        return port
 
     @staticmethod
     def is_port_in_use(port: int) -> bool:

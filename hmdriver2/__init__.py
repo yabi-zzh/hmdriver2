@@ -2,8 +2,8 @@
 
 import logging
 
-formatter = logging.Formatter('[%(asctime)s] %(filename)15s[line:%(lineno)4d] \
-                              [%(levelname)s] %(message)s',
+formatter = logging.Formatter('[%(asctime)s] %(filename)18s[line:%(lineno)4d] ' +
+                              '[%(levelname)-7s]    %(message)s',
                               datefmt='%Y-%m-%d %H:%M:%S')
 
 logger = logging.getLogger('hmdriver2')

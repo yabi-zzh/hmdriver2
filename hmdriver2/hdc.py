@@ -74,9 +74,15 @@ def _build_hdc_prefix() -> str:
     return HDC_CMD
 
 
-def list_devices() -> List[str]:
+def list_devices(force_refresh: bool = False) -> List[str]:
     """
     列出所有已连接的设备
+    
+    通过设备管理器获取连接的设备序列号列表。
+    使用缓存机制避免重复的 HDC 查询。
+    
+    Args:
+        force_refresh: 是否强制刷新设备列表，忽略缓存
     
     Returns:
         List[str]: 设备序列号列表
@@ -84,21 +90,8 @@ def list_devices() -> List[str]:
     Raises:
         HdcError: HDC 命令执行失败时抛出
     """
-    devices = []
-    hdc_prefix = _build_hdc_prefix()
-    result = _execute_command(f"{hdc_prefix} list targets")
-    
-    if result.exit_code == 0 and result.output:
-        lines = result.output.strip().split('\n')
-        for line in lines:
-            if 'Empty' in line:
-                continue
-            devices.append(line.strip())
-
-    if result.exit_code != 0:
-        raise HdcError("HDC 错误", result.error)
-
-    return devices
+    from .device_manager import device_manager
+    return device_manager.get_devices(force_refresh=force_refresh)
 
 
 class HdcWrapper:
@@ -131,8 +124,8 @@ class HdcWrapper:
         Returns:
             bool: 设备在线返回 True，否则返回 False
         """
-        _serials = list_devices()
-        return self.serial in _serials
+        from .device_manager import device_manager
+        return device_manager.has_device(self.serial, auto_refresh=False)
 
     def forward_port(self, rport: int) -> int:
         """
