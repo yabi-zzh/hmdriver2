@@ -19,6 +19,9 @@
 
 <img src="https://i.ibb.co/Xx9HcKk/wechat.png" alt="wechat" style="float: left" />
 
+> 其他项目：HarmonyScrcpy（HarmonyOS NEXT / OpenHarmony 同屏与应用重签名工具）  
+> 项目地址：<https://github.com/yabi-zzh/HarmonyScrcpy>
+
 # Key idea
 - **无侵入式**
   - 无需提前在手机端安装testRunner APP（类似atx app）
@@ -49,6 +52,11 @@
   - 控件点击，长按，拖拽，缩放
   - 文本输入，清除
   - 获取控件树
+- 支持 WebView（WebDriver）自动化
+  - 自动发现与连接 WebView
+  - 端口转发（TCP / 应用内部端口）
+  - ChromeDriver 版本自动适配（114 / 140）
+  - 自动切换到可见窗口
 - 支持Toast获取
 - UI Inspector
 - [TODO] 全场景弹窗处理
@@ -780,6 +788,86 @@ toast = d.toast_watcher.get_toast()
 
 # output: 'testMessage'
 ```
+
+## WebDriver
+
+### 配置 ChromeDriver
+
+- 下载对应版本的 chromedriver，并放置到项目目录：
+  - `hmdriver2/assets/web_debug_tools/chromedriver_<版本>/chromedriver[.exe]`
+  - 示例：
+    - Windows: `hmdriver2/assets/web_debug_tools/chromedriver_114/chromedriver.exe`
+    - Linux/macOS: `hmdriver2/assets/web_debug_tools/chromedriver_140/chromedriver`
+- 仅使用项目内置目录，不从系统 PATH 中查找。
+
+可选配置：
+```python
+driver.webdriver.configure_chromedriver(
+    enable_log=False,     # 是否启用 chromedriver 日志
+    log_level="INFO",     # OFF/SEVERE/WARNING/INFO/DEBUG/ALL
+    backup_log=False,     # 是否备份日志
+    port=9515             # chromedriver 服务端口（默认9515）
+)
+```
+
+### 连接 WebView
+
+```python
+from hmdriver2.driver import Driver
+
+d = Driver()
+d.start_app("com.huawei.hmos.browser")
+
+wd = d.webdriver.connect("com.huawei.hmos.browser")
+# 或指定 chromedriver 版本
+# wd = d.webdriver.connect("com.huawei.hmos.browser", chromedriver_version=140)
+
+wd.get("https://www.baidu.com")
+print(wd.title)
+```
+
+### 超时设置
+
+- 页面加载超时：默认 10 秒
+- 脚本执行超时：默认 10 秒
+- 元素查找隐式等待：默认 5 秒
+
+如需自定义，可在连接后自行调用 Selenium 原生 API：
+```python
+wd.set_page_load_timeout(30)
+wd.set_script_timeout(30)
+wd.implicitly_wait(10)
+```
+
+### 窗口管理
+
+- 连接后自动切换到“可见窗口”；如需手动：
+```python
+d.webdriver.switch_to_visible_window(index=0)  # 第N个可见窗口，支持负数
+```
+
+### 常用示例
+
+```python
+from selenium.webdriver.common.by import By
+
+wd.get("https://www.baidu.com")
+search = wd.find_element(By.ID, "index-kw")
+search.send_keys("HarmonyOS")
+```
+
+### 故障排查
+
+- 无法获取 WebView 版本：
+  1) 确认应用已启用 WebView 调试
+  2) 设备未锁屏且 WebView 界面可见
+  3) WebView 已完全加载
+- 端口转发失败：
+  - 检查是否使用了应用内部端口（abstract socket）或 TCP 端口
+  - 查看日志中的“系统内部端口转发/应用内部端口转发”信息
+- 版本不兼容：
+  - WebView 114-132 使用 chromedriver_114
+  - WebView 140+ 使用 chromedriver_140
 
 # 鸿蒙Uitest协议
 
