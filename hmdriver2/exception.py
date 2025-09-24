@@ -38,3 +38,28 @@ class InjectGestureError(Exception):
 
 class ScreenRecordError(Exception):
     pass
+
+
+class WebDriverError(Exception):
+    """WebDriver 相关错误的基类"""
+    pass
+
+
+class WebDriverSetupError(WebDriverError):
+    """WebDriver 设置错误"""
+    pass
+
+
+class WebDriverConnectionError(WebDriverError):
+    """WebDriver 连接错误"""
+    pass
+
+
+class ChromeDriverError(WebDriverError):
+    """ChromeDriver 进程相关错误"""
+    pass
+
+
+class WebViewNotFoundError(WebDriverError):
+    """WebView 未找到错误"""
+    pass

@@ -3,7 +3,10 @@
 import json
 import uuid
 from functools import cached_property  # python3.8+
-from typing import Type, Tuple, Dict, Union, List, Optional, Any
+from typing import Type, Tuple, Dict, Union, List, Optional, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ._webdriver import WebDriver
 
 from . import logger
 from ._client import HmClient
@@ -792,3 +795,30 @@ class Driver:
         """
         from ._xpath import _XPath
         return _XPath(self)
+
+    @cached_property
+    def webdriver(self) -> 'WebDriver':
+        """
+        获取 WebDriver 功能
+        
+        用于调试和控制 HarmonyOS 设备上的 WebView
+        
+        用法示例:
+        # 连接应用的 WebView
+        wd = d.webdriver.connect("com.huawei.browser")
+        
+        # 导航到网页
+        wd.get("https://www.baidu.com")
+        
+        # 查找元素并操作
+        element = wd.find_element(By.ID, "kw")
+        element.send_keys("HarmonyOS")
+        
+        # 关闭连接
+        d.webdriver.close()
+        
+        Returns:
+            WebDriver: WebDriver 管理实例
+        """
+        from ._webdriver import WebDriver
+        return WebDriver(self)
