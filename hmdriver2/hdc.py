@@ -337,33 +337,41 @@ class HdcWrapper:
         """
         获取当前前台应用信息
         
+        1) 通过 WindowManagerService 获取焦点窗口ID  
+        2) 通过 AbilityManagerService 任务列表匹配包名与ability
+        
         Returns:
-            Tuple[Optional[str], Optional[str]]: 包含应用包名和页面名称的元组
-                                                如果未找到前台应用，返回 (None, None)
+            Tuple[Optional[str], Optional[str]]: (package_name, ability_name)
         """
-        def __extract_info(output: str) -> List[Tuple[str, str]]:
-            """提取应用信息"""
-            results = []
+        try:
+            # 获取焦点窗口ID
+            wms_output = self.shell("hidumper -s WindowManagerService -a '-a'").output
+            focus_match = re.search(r"Focus window: (\d+)", wms_output)
+            if not focus_match:
+                return None, None
+            focus_id = focus_match.group(1)
 
-            mission_blocks = re.findall(r'Mission ID #[\s\S]*?isKeepAlive: false\s*}', output)
-            if not mission_blocks:
-                return results
-
-            for block in mission_blocks:
-                if 'state #FOREGROUND' in block:
-                    bundle_name_match = re.search(r'bundle name \[(.*?)\]', block)
-                    main_name_match = re.search(r'main name \[(.*?)\]', block)
-                    if bundle_name_match and main_name_match:
-                        package_name = bundle_name_match.group(1)
-                        page_name = main_name_match.group(1)
-                        results.append((package_name, page_name))
-
-            return results
-
-        data: CommandResult = self.shell("aa dump -l")
-        output = data.output
-        results = __extract_info(output)
-        return results[0] if results else (None, None)
+            # 获取任务列表并匹配焦点窗口
+            ams_output = self.shell("hidumper -s AbilityManagerService -a -l").output
+            mission_pattern = r"Mission ID #(\d+)\s+mission name #\[(.*?)\]"
+            
+            # 优先从 AMS 输出匹配
+            for mission_id, mission_name in re.findall(mission_pattern, ams_output):
+                if mission_id == focus_id and ":" in mission_name:
+                    package, ability = mission_name.split(":", 1)
+                    return package.replace("#", ""), ability
+            
+            # 兜底从 WMS 输出匹配
+            for mission_id, mission_name in re.findall(mission_pattern, wms_output):
+                if mission_id == focus_id and ":" in mission_name:
+                    package, ability = mission_name.split(":", 1)
+                    return package.replace("#", ""), ability
+                    
+            return None, None
+            
+        except Exception as e:
+            logger.warning(f"获取前台应用失败: {e}")
+            return None, None
 
     def wakeup(self) -> None:
         """唤醒设备"""
@@ -382,6 +390,27 @@ class HdcWrapper:
         match = re.search(pattern, data)
 
         return match.group(1) if match else None
+
+    def is_screen_locked(self) -> bool:
+        """
+        检查屏幕是否锁定
+        
+        Returns:
+            bool: 屏幕锁定返回 True，否则返回 False
+        """
+        try:
+            data = self.shell("hidumper -s ScreenlockService -a '-all'").output
+            # 查找 screenLocked 状态
+            pattern = r"screenLocked\s+(\w+)"
+            match = re.search(pattern, data)
+            
+            if match:
+                status = match.group(1).lower()
+                return status == "true"
+            return False
+        except Exception as e:
+            logger.warning(f"获取屏幕锁定状态失败: {e}")
+            return False
 
     def wlan_ip(self) -> Optional[str]:
         """
@@ -498,7 +527,8 @@ class HdcWrapper:
         if key_code > MAX_KEY_CODE:
             raise HdcError("无效的 HDC 按键代码")
 
-        self.shell(f"uitest uiInput keyEvent {key_code}")
+        # 使用 uinput 替代 uitest，-K 表示按键事件
+        self.shell(f"uinput -K {key_code}")
 
     def tap(self, x: int, y: int) -> None:
         """
@@ -508,9 +538,10 @@ class HdcWrapper:
             x: X 坐标
             y: Y 坐标
         """
-        self.shell(f"uitest uiInput click {x} {y}")
+        # 使用 uinput 替代 uitest，-T 表示触摸，-c 表示点击
+        self.shell(f"uinput -T -c {x} {y}")
 
-    def swipe(self, x1: int, y1: int, x2: int, y2: int, speed: int = 1000) -> None:
+    def swipe(self, x1: int, y1: int, x2: int, y2: int, speed: int = 500) -> None:
         """
         在屏幕上滑动
         
@@ -519,9 +550,10 @@ class HdcWrapper:
             y1: 起始 Y 坐标
             x2: 结束 X 坐标
             y2: 结束 Y 坐标
-            speed: 滑动速度，默认为 1000
+            speed: 滑动持续时间（毫秒），默认为 500
         """
-        self.shell(f"uitest uiInput swipe {x1} {y1} {x2} {y2} {speed}")
+        # 使用 uinput 替代 uitest，-T 表示触摸，-m 表示移动/滑动
+        self.shell(f"uinput -T -m {x1} {y1} {x2} {y2} {speed}")
 
     def input_text(self, x: int, y: int, text: str) -> None:
         """

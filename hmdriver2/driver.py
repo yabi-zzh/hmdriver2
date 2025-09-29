@@ -494,11 +494,23 @@ class Driver:
         """
         解锁屏幕
         
-        先唤醒屏幕，然后从屏幕底部向上滑动
+        在运行时先点亮屏幕，然后判断是否需要解锁，如果需要则执行解锁手势
         """
+        
+        # 先点亮屏幕
         self.screen_on()
-        w, h = self.display_size
-        self.swipe(0.5 * w, 0.8 * h, 0.5 * w, 0.2 * h, speed=6000)
+        
+        # 检查屏幕是否锁定
+        if self.hdc.is_screen_locked():
+            w, h = self.display_size
+            x = w // 2
+            start_y = h * 7 // 8
+            end_y = h // 3
+            # 使用 hdc.swipe 方法执行解锁滑动，持续时间 500ms
+            self.hdc.swipe(x, start_y, x, end_y, 500)
+            logger.info("屏幕已解锁")
+        else:
+            logger.info("屏幕未锁屏")
 
     @cached_property
     def display_size(self) -> Tuple[int, int]:
