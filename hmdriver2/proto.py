@@ -66,6 +66,7 @@ class HypiumResponse:
     """
     result: Union[List, Dict, bool, str, None] = None
     exception: Union[List, Dict, bool, str, None] = None
+    pts: Union[int, None] = None  # 时间戳字段（可选）
 
 
 @dataclass
