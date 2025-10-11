@@ -114,20 +114,23 @@ class Driver:
         将 Driver 实例作为函数调用，返回 UiObject 实例
         
         Args:
-            **kwargs: 传递给 UiObject 构造函数的参数，支持 Match 匹配模式
+            **kwargs: 传递给 UiObject 构造函数的参数
+            
+        注意：
+            - 只有 text 属性支持 Match 匹配模式
+            - 其他属性（id、key、description等）只支持完全匹配
             
         Examples:
-            # 完全匹配（默认）
-            d(text="确定")
+            # text 属性支持匹配模式
+            d(text="确定")                          # 完全匹配（默认）
+            d(text="搜索", match=Match.IN)          # 包含匹配
+            d(text="app_.*", match=Match.RE)        # 正则匹配
+            d(text=("^设置.*", Match.RE))           # 元组格式
             
-            # 包含匹配
-            d(text="搜索", match=Match.IN)
-            
-            # 正则匹配
-            d(text="app_.*", match=Match.RE)
-            
-            # 元组格式：(值, 匹配模式)
-            d(text=("^设置.*", Match.RE))
+            # 其他属性只支持完全匹配
+            d(id="btn_confirm")                     # ID 完全匹配
+            d(description="打开")                   # 描述完全匹配
+            d(type="Button")                        # 类型完全匹配
             
         Returns:
             UiObject: 创建的 UiObject 实例

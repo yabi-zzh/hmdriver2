@@ -68,6 +68,11 @@ class UiObject:
     UI 对象类，用于查找和操作 UI 元素
     
     提供了元素查找、属性获取和操作执行的功能
+    
+    重要提示：
+        - 只有 text 属性支持 Match 匹配模式（EQ、IN、SW、EW、RE、REI）
+        - 其他属性（id、key、description、type等）只支持完全匹配
+        - 如果为非 text 属性设置匹配模式，会自动忽略并使用完全匹配
     """
     
     # 默认超时时间（秒）
@@ -82,6 +87,7 @@ class UiObject:
             **kwargs: 查找元素的条件，支持 Match 参数
                 例如: text="搜索", match=Match.RE
                 或者: text=("app_.*", Match.RE)
+                注意：只有 text 属性支持匹配模式，其他属性会忽略匹配模式
         """
         self._client = client
         self._raw_kwargs = kwargs
@@ -101,10 +107,18 @@ class UiObject:
                 # 支持 text=("搜索", Match.RE) 格式
                 self._kwargs[k] = v[0]
                 self._match_patterns[k] = v[1]
+                
+                # 如果非 text 属性使用了匹配模式，给出警告
+                if k != "text" and v[1] != Match.EQ:
+                    logger.warning(f"属性 '{k}' 不支持匹配模式，将使用完全匹配")
             else:
                 # 普通格式，使用默认或全局匹配模式
                 self._kwargs[k] = v
                 self._match_patterns[k] = self._match
+                
+                # 如果非 text 属性且全局 match 不是 EQ，给出警告
+                if k != "text" and self._match != Match.EQ:
+                    logger.warning(f"属性 '{k}' 不支持匹配模式，将使用完全匹配")
                 
         self.__verify()
 
@@ -227,13 +241,19 @@ class UiObject:
         """
         this = "On#seed"
         
-        # 处理所有查找条件，支持 Match
+        # 处理所有查找条件，只有 text 属性支持 Match
         for k, v in self._kwargs.items():
             api = f"On.{k}"
-            match_pattern = self._match_patterns.get(k, Match.EQ)
             
-            # 构建参数：[值, 匹配模式值]
-            args = [v, match_pattern.value]
+            # 只有 text 属性支持匹配模式参数
+            if k == "text":
+                match_pattern = self._match_patterns.get(k, Match.EQ)
+                # 构建参数：[值, 匹配模式值]
+                args = [v, match_pattern.value]
+            else:
+                # 其他属性只传值
+                args = [v]
+            
             resp: HypiumResponse = self._client.invoke(api, this=this, args=args)
             this = resp.result
 
