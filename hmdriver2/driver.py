@@ -489,7 +489,6 @@ class Driver:
 
     def screen_off(self):
         """关闭屏幕"""
-        self.hdc.wakeup()
         self.press_key(KeyCode.POWER)
 
     @delay

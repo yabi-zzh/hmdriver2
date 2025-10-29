@@ -63,21 +63,10 @@ class FreePort:
         Returns:
             int: 可用的端口号
         """
-        start_ts = time.time()
-        port = 0
-        try:
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            # 绑定到0表示让系统分配可用端口
+        # 使用上下文管理器自动管理 socket 资源
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.bind(('127.0.0.1', 0))
-            port = s.getsockname()[1]
-        finally:
-            try:
-                s.close()
-            except Exception:
-                pass
-
-        # 保持实现简洁，不额外输出调试日志
-        return port
+            return s.getsockname()[1]
 
     @staticmethod
     def is_port_in_use(port: int) -> bool:
