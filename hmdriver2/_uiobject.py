@@ -2,7 +2,7 @@
 
 import enum
 import time
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 
 from . import logger
 from ._client import HmClient
@@ -123,6 +123,7 @@ class UiObject:
         self.__verify()
 
         self._component: Optional[ComponentData] = None  # 缓存找到的组件
+        self.__properties_cache: Optional[Dict[str, Any]] = None  # 缓存元素所有属性
 
     def __str__(self) -> str:
         """返回 UiObject 的字符串表示"""
@@ -266,6 +267,49 @@ class UiObject:
 
         return ByData(resp.result)
 
+    def __load_all_properties(self) -> None:
+        """
+        一次性加载元素的所有属性
+        
+        使用 Component.getAllProperties API 获取所有属性并缓存
+        这样后续属性访问不需要重复发起网络请求
+        """
+        if not self._component:
+            return
+            
+        try:
+            resp: HypiumResponse = self._client.invoke(
+                "Component.getAllProperties",
+                this=self._component.value,
+                args=[]
+            )
+            if resp.result:
+                self.__properties_cache = resp.result
+                logger.debug(f"已缓存元素所有属性")
+        except Exception as e:
+            logger.warning(f"加载元素所有属性失败: {e}")
+            self.__properties_cache = {}
+
+    def __get_cached_property(self, property_name: str) -> Any:
+        """
+        从缓存中获取属性值
+        
+        Args:
+            property_name: 属性名称
+            
+        Returns:
+            Any: 属性值
+        """
+        # 如果缓存不存在，先加载所有属性
+        if self.__properties_cache is None:
+            self.__load_all_properties()
+        
+        # 从缓存中获取
+        if self.__properties_cache is not None:
+            return self.__properties_cache.get(property_name)
+        
+        return None
+
     def __operate(self, api: str, args: Optional[List[Any]] = None, retries: int = 2) -> Any:
         """
         对元素执行操作
@@ -294,67 +338,119 @@ class UiObject:
     @property
     def id(self) -> str:
         """元素 ID"""
-        return self.__operate("Component.getId")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("id")
+        return value if value is not None else ""
 
     @property
     def key(self) -> str:
         """元素键值"""
-        return self.__operate("Component.getId")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("key")
+        return value if value is not None else ""
 
     @property
     def type(self) -> str:
         """元素类型"""
-        return self.__operate("Component.getType")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("type")
+        return value if value is not None else ""
 
     @property
     def text(self) -> str:
         """元素文本"""
-        return self.__operate("Component.getText")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("text")
+        return value if value is not None else ""
 
     @property
     def description(self) -> str:
         """元素描述"""
-        return self.__operate("Component.getDescription")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("description")
+        return value if value is not None else ""
 
     @property
     def isSelected(self) -> bool:
         """元素是否被选中"""
-        return self.__operate("Component.isSelected")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("selected")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isChecked(self) -> bool:
         """元素是否被勾选"""
-        return self.__operate("Component.isChecked")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("checked")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isEnabled(self) -> bool:
         """元素是否启用"""
-        return self.__operate("Component.isEnabled")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("enabled")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isFocused(self) -> bool:
         """元素是否获得焦点"""
-        return self.__operate("Component.isFocused")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("focused")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isCheckable(self) -> bool:
         """元素是否可勾选"""
-        return self.__operate("Component.isCheckable")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("checkable")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isClickable(self) -> bool:
         """元素是否可点击"""
-        return self.__operate("Component.isClickable")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("clickable")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isLongClickable(self) -> bool:
         """元素是否可长按"""
-        return self.__operate("Component.isLongClickable")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("longClickable")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def isScrollable(self) -> bool:
         """元素是否可滚动"""
-        return self.__operate("Component.isScrollable")
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        value = self.__get_cached_property("scrollable")
+        return value == "true" if isinstance(value, str) else bool(value)
 
     @property
     def bounds(self) -> Bounds:
@@ -364,6 +460,21 @@ class UiObject:
         Returns:
             Bounds: 元素边界对象
         """
+        if not self._component:
+            if not self.find_component():
+                raise ElementNotFoundError(f"未找到元素({self})")
+        
+        # 从缓存中获取 bounds 对象
+        _raw = self.__get_cached_property("bounds")
+        if _raw and isinstance(_raw, dict):
+            return Bounds(
+                left=_raw.get("left", 0),
+                top=_raw.get("top", 0),
+                right=_raw.get("right", 0),
+                bottom=_raw.get("bottom", 0)
+            )
+        
+        # 如果缓存获取失败，使用原来的方式
         _raw = self.__operate("Component.getBounds")
         return Bounds(**_raw)
 
@@ -375,8 +486,9 @@ class UiObject:
         Returns:
             Point: 元素中心点坐标对象
         """
-        _raw = self.__operate("Component.getBoundsCenter")
-        return Point(**_raw)
+        # 从 bounds 计算中心点，避免额外的网络请求
+        bounds_obj = self.bounds
+        return bounds_obj.get_center()
 
     @property
     def info(self) -> ElementInfo:
