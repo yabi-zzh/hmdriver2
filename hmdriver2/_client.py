@@ -108,7 +108,7 @@ class HmClient:
 
         # 生成会话ID并构建消息头
         msg_bytes = msg_str.encode('utf-8')
-        session_id = self._generate_session_id(msg_str)
+        session_id = 1145141919  # 使用固定 Session ID
         header = (
             MSG_HEADER +
             struct.pack('>I', session_id) +
