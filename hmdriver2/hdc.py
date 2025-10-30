@@ -527,8 +527,8 @@ class HdcWrapper:
         if key_code > MAX_KEY_CODE:
             raise HdcError("无效的 HDC 按键代码")
 
-        # 使用 uinput 替代 uitest，-K 表示按键事件
-        self.shell(f"uinput -K {key_code}")
+        # 使用 uinput，-K 表示按键，-d 表示按下，-u 表示抬起
+        self.shell(f"uinput -K -d {key_code} -u {key_code}")
 
     def tap(self, x: int, y: int) -> None:
         """
